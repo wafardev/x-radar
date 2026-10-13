@@ -35,7 +35,6 @@ export function applyVerdict(
   article: HTMLElement,
   tweetId: string,
   verdict: Verdict,
-  passthrough: boolean,
 ): void {
   const target = hideTargetFor(article);
   article.setAttribute("data-slopradar-id", tweetId);
@@ -43,9 +42,7 @@ export function applyVerdict(
   article.setAttribute("data-slopradar-label", verdict.label);
   article.setAttribute("data-slopradar-reason", verdict.reason);
 
-  const shouldHide = verdict.hide && !passthrough;
-
-  if (shouldHide) {
+  if (verdict.hide) {
     target.setAttribute(ATTR, HIDDEN);
     if (!hideStack.includes(tweetId)) hideStack.push(tweetId);
     notify(tweetId, true);
@@ -78,20 +75,4 @@ export function revealAll(): void {
   }
   hideStack.length = 0;
   notify("", false);
-}
-
-export function reapplyHides(passthrough: boolean): void {
-  if (passthrough) {
-    revealAll();
-    return;
-  }
-  for (const article of document.querySelectorAll<HTMLElement>(
-    'article[data-slopradar-label="slop"]',
-  )) {
-    const tweetId = article.getAttribute("data-slopradar-id");
-    if (!tweetId) continue;
-    const target = hideTargetFor(article);
-    target.setAttribute(ATTR, HIDDEN);
-    if (!hideStack.includes(tweetId)) hideStack.push(tweetId);
-  }
 }

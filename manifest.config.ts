@@ -5,7 +5,7 @@ export default defineManifest({
   name: "Twitter Slop Radar",
   description:
     "Filter X/Twitter into a crypto-work feed. Hide entertainment slop; keep markets and research.",
-  version: "1.0.2",
+  version: "1.0.7",
   action: {
     default_popup: "src/popup/index.html",
     default_title: "Slop Radar",

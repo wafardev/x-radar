@@ -21,9 +21,13 @@
         <span>Enabled</span>
       </label>
       <label class="switch">
-        <input type="checkbox" id="passthrough" />
-        <span>Passthrough (classify, don’t hide)</span>
+        <input type="checkbox" id="stampMode" />
+        <span>Stamp mode</span>
       </label>
+      <p class="hint">
+        <strong>Off:</strong> slop is hidden immediately.<br />
+        <strong>On:</strong> slop gets a stamp and stays visible.
+      </p>
     </section>
 
     <section class="row toggles">
@@ -113,7 +117,7 @@
 
     <footer>
       <button type="button" id="saveBtn">Save</button>
-      <button type="button" id="updateBtn" class="ghost">Update</button>
+      <button type="button" id="updateBtn" class="ghost" title="Apply latest keyword defaults and reload the extension">Update</button>
       <span id="status" role="status"></span>
       <span id="version" class="version"></span>
     </footer>

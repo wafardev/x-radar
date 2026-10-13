@@ -1,5 +1,5 @@
 import { classifyTweet } from "../pipeline/classify";
-import type { Settings } from "../shared/types";
+import type { Settings, Verdict } from "../shared/types";
 import { loadSettings } from "../shared/settings";
 import {
   applyVerdict,
@@ -9,6 +9,7 @@ import {
 } from "./apply";
 import { ensureChip, refreshChip, setChipVisible } from "./chip";
 import { extractTweet, getTweetArticles } from "./extract";
+import { playSlopStamp } from "./stamp";
 
 const processedGen = new WeakMap<HTMLElement, number>();
 const inFlight = new Set<string>();
@@ -32,6 +33,25 @@ function applySettingsSideEffects(s: Settings): void {
   scan(document);
 }
 
+async function applyWithStamp(
+  article: HTMLElement,
+  tweetId: string,
+  verdict: Verdict,
+  stampMode: boolean,
+): Promise<void> {
+  if (verdict.hide && stampMode) {
+    // Stamp mode: smash animation, leave mark, do not hide
+    await playSlopStamp(article, { linger: true });
+    applyVerdict(article, tweetId, { ...verdict, hide: false });
+  } else if (verdict.hide) {
+    // Work mode: hide immediately, no stamp flash
+    applyVerdict(article, tweetId, verdict);
+  } else {
+    applyVerdict(article, tweetId, verdict);
+  }
+  refreshChip();
+}
+
 async function processArticle(article: HTMLElement): Promise<void> {
   if (processedGen.get(article) === generation) return;
   const tweet = extractTweet(article);
@@ -45,18 +65,13 @@ async function processArticle(article: HTMLElement): Promise<void> {
   try {
     const s = settings ?? (await refreshSettings());
     if (!s.enabled) {
-      applyVerdict(
-        article,
-        tweet.id,
-        {
-          label: "unsure",
-          confidence: 1,
-          reason: "Disabled",
-          source: "disabled",
-          hide: false,
-        },
-        true,
-      );
+      applyVerdict(article, tweet.id, {
+        label: "unsure",
+        confidence: 1,
+        reason: "Disabled",
+        source: "disabled",
+        hide: false,
+      });
       return;
     }
 
@@ -65,25 +80,15 @@ async function processArticle(article: HTMLElement): Promise<void> {
       settings: s,
     });
 
-    const effective = s.passthrough
-      ? { ...verdict, hide: false, source: "passthrough" as const }
-      : verdict;
-
-    applyVerdict(article, tweet.id, effective, s.passthrough);
-    refreshChip();
+    await applyWithStamp(article, tweet.id, verdict, s.stampMode);
   } catch (err) {
-    applyVerdict(
-      article,
-      tweet.id,
-      {
-        label: "unsure",
-        confidence: 0,
-        reason: err instanceof Error ? err.message : "Classify failed",
-        source: "fail_open",
-        hide: false,
-      },
-      false,
-    );
+    applyVerdict(article, tweet.id, {
+      label: "unsure",
+      confidence: 0,
+      reason: err instanceof Error ? err.message : "Classify failed",
+      source: "fail_open",
+      hide: false,
+    });
   } finally {
     inFlight.delete(tweet.id);
   }
@@ -93,9 +98,10 @@ async function drainQueue(): Promise<void> {
   if (draining) return;
   draining = true;
   try {
+    // Stamp animations look better one-at-a-time than a cascade of 3
     while (queue.length > 0) {
-      const batch = queue.splice(0, 3);
-      await Promise.all(batch.map((el) => processArticle(el)));
+      const article = queue.shift();
+      if (article) await processArticle(article);
     }
   } finally {
     draining = false;

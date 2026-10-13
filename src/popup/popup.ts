@@ -23,7 +23,7 @@ function listToText(items: string[]): string {
 function readForm(): Settings {
   return {
     enabled: ($("enabled") as HTMLInputElement).checked,
-    passthrough: ($("passthrough") as HTMLInputElement).checked,
+    stampMode: ($("stampMode") as HTMLInputElement).checked,
     hideNoTextImage: ($("hideNoTextImage") as HTMLInputElement).checked,
     hideNoTextGif: ($("hideNoTextGif") as HTMLInputElement).checked,
     hideNoTextVideo: ($("hideNoTextVideo") as HTMLInputElement).checked,
@@ -44,7 +44,7 @@ function readForm(): Settings {
 
 function fillForm(settings: Settings): void {
   ($("enabled") as HTMLInputElement).checked = settings.enabled;
-  ($("passthrough") as HTMLInputElement).checked = settings.passthrough;
+  ($("stampMode") as HTMLInputElement).checked = settings.stampMode;
   ($("hideNoTextImage") as HTMLInputElement).checked = settings.hideNoTextImage;
   ($("hideNoTextGif") as HTMLInputElement).checked = settings.hideNoTextGif;
   ($("hideNoTextVideo") as HTMLInputElement).checked = settings.hideNoTextVideo;
@@ -117,7 +117,12 @@ async function init(): Promise<void> {
     }
   });
 
-  for (const id of ["hideNoTextImage", "hideNoTextGif", "hideNoTextVideo"]) {
+  for (const id of [
+    "stampMode",
+    "hideNoTextImage",
+    "hideNoTextGif",
+    "hideNoTextVideo",
+  ]) {
     $(id).addEventListener("change", () => {
       void persistForm()
         .then(() => setStatus("Saved", "ok"))
@@ -172,7 +177,9 @@ async function init(): Promise<void> {
         DEFAULT_NAME_KEYWORDS,
       );
       await persistForm();
-      setStatus("Updated defaults", "ok");
+      setStatus("Reloading…", "ok");
+      // Pick up a newly built dist/ (version bump, code changes)
+      chrome.runtime.reload();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Update failed", "err");
     }

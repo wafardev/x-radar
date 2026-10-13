@@ -21,6 +21,7 @@ export function normalizeSettings(partial?: Partial<Settings>): Settings {
   const merged: Settings = { ...DEFAULT_SETTINGS, ...partial };
   return {
     ...merged,
+    stampMode: merged.stampMode ?? false,
     hideNoTextImage: merged.hideNoTextImage ?? true,
     hideNoTextGif: merged.hideNoTextGif ?? true,
     hideNoTextVideo: merged.hideNoTextVideo ?? true,
@@ -116,6 +117,29 @@ export async function setCachedVerdict(
 
 export async function clearVerdictCache(): Promise<void> {
   await chrome.storage.session.remove(CACHE_KEY);
+}
+
+const STAMP_KEY = "slopradar_stamped";
+
+type StampMap = Record<string, true>;
+
+export async function isTweetStamped(tweetId: string): Promise<boolean> {
+  const result = await chrome.storage.local.get(STAMP_KEY);
+  const map = (result[STAMP_KEY] as StampMap | undefined) ?? {};
+  return Boolean(map[tweetId]);
+}
+
+export async function stampTweetId(tweetId: string): Promise<void> {
+  const result = await chrome.storage.local.get(STAMP_KEY);
+  const map = (result[STAMP_KEY] as StampMap | undefined) ?? {};
+  map[tweetId] = true;
+  const ids = Object.keys(map);
+  if (ids.length > 2000) {
+    for (const id of ids.slice(0, ids.length - 1500)) {
+      delete map[id];
+    }
+  }
+  await chrome.storage.local.set({ [STAMP_KEY]: map });
 }
 
 export function parseHandleList(text: string): string[] {

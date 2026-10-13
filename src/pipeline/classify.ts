@@ -1,7 +1,7 @@
 import { accountVerdict, keywordVerdict, nameVerdict } from "./keywords";
 import type { Settings, TweetData, Verdict } from "../shared/types";
 import { sendMessage } from "../shared/messaging";
-import { bumpStat } from "../shared/settings";
+import { bumpStat, isTweetStamped } from "../shared/settings";
 
 export interface ClassifyContext {
   tweet: TweetData;
@@ -116,6 +116,18 @@ export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
       source: "disabled",
       hide: false,
     };
+  }
+
+  if (await isTweetStamped(tweet.id)) {
+    const stamped: Verdict = {
+      label: "slop",
+      confidence: 1,
+      reason: "Manually stamped as slop",
+      source: "manual_slop",
+      hide: true,
+    };
+    await setCache(tweet.id, stamped);
+    return stamped;
   }
 
   const local = localRules(tweet, settings);

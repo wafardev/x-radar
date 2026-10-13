@@ -285,7 +285,7 @@ export const DEFAULT_NAME_KEYWORDS = [
 
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
-  passthrough: false,
+  stampMode: false,
   hideNoTextImage: true,
   hideNoTextGif: true,
   hideNoTextVideo: true,

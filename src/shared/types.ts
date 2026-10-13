@@ -10,11 +10,11 @@ export type VerdictSource =
   | "keyword_slop"
   | "name_slop"
   | "media_only"
+  | "manual_slop"
   | "text_ai"
   | "vision_ai"
   | "fail_open"
-  | "disabled"
-  | "passthrough";
+  | "disabled";
 
 export interface TweetData {
   id: string;
@@ -37,7 +37,11 @@ export interface Verdict {
 
 export interface Settings {
   enabled: boolean;
-  passthrough: boolean;
+  /**
+   * When true: slop posts get a stamp animation and stay visible.
+   * When false: slop posts are hidden immediately (never stamped).
+   */
+  stampMode: boolean;
   /** Hide image posts with no text */
   hideNoTextImage: boolean;
   /** Hide GIF posts with no text */
