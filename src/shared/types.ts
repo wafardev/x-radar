@@ -9,6 +9,7 @@ export type VerdictSource =
   | "keyword_crypto"
   | "keyword_slop"
   | "media_only"
+  | "quote_reaction"
   | "manual_slop"
   | "text_ai"
   | "vision_ai"

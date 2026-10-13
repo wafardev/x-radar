@@ -10,13 +10,26 @@ export function getTweetArticles(root: ParentNode = document): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(TWEET_SELECTOR));
 }
 
-function extractTweetId(article: HTMLElement): string | null {
-  const statusLink = article.querySelector<HTMLAnchorElement>(
-    'a[href*="/status/"]',
-  );
-  if (!statusLink) return null;
-  const match = statusLink.getAttribute("href")?.match(/\/status\/(\d+)/);
+function statusIdFromHref(href: string | null | undefined): string | null {
+  if (!href) return null;
+  const match = href.match(/\/status\/(\d+)/);
   return match?.[1] ?? null;
+}
+
+/** Main tweet id from the timestamp link (not the quoted status). */
+function extractTweetId(article: HTMLElement): string | null {
+  const timeLink = article.querySelector("time")?.closest("a[href*='/status/']");
+  const fromTime = statusIdFromHref(timeLink?.getAttribute("href"));
+  if (fromTime) return fromTime;
+
+  for (const link of article.querySelectorAll<HTMLAnchorElement>(
+    'a[href*="/status/"]',
+  )) {
+    if (link.closest('[data-testid="quoteTweet"]')) continue;
+    const id = statusIdFromHref(link.getAttribute("href"));
+    if (id) return id;
+  }
+  return null;
 }
 
 function extractHandle(article: HTMLElement): string {
@@ -72,15 +85,36 @@ export function normalizeTweetText(raw: string): string {
   return stripped;
 }
 
-function isInsideQuote(el: Element): boolean {
+function isInsideQuote(el: Element, mainTweetId: string | null): boolean {
   if (el.closest('[data-testid="quoteTweet"]')) return true;
-  // Quote cards are often a nested status link block with its own User-Name
-  const quoteLink = el.closest('div[role="link"][href*="/status/"]');
-  if (quoteLink) return true;
-  return false;
+
+  const nestedArticle = el.closest("article");
+  const rootArticle = el.closest('article[data-testid="tweet"]');
+  if (
+    nestedArticle &&
+    rootArticle &&
+    nestedArticle !== rootArticle &&
+    rootArticle.contains(nestedArticle)
+  ) {
+    return true;
+  }
+
+  const statusEl = el.closest<HTMLElement>(
+    'a[href*="/status/"], div[role="link"][href*="/status/"]',
+  );
+  if (!statusEl || !mainTweetId) return false;
+  const href =
+    statusEl.getAttribute("href") ||
+    statusEl.querySelector("a[href*='/status/']")?.getAttribute("href") ||
+    "";
+  const id = statusIdFromHref(href);
+  return Boolean(id && id !== mainTweetId);
 }
 
-function extractPrimaryAndQuoteText(article: HTMLElement): {
+function extractPrimaryAndQuoteText(
+  article: HTMLElement,
+  mainTweetId: string | null,
+): {
   text: string;
   quoteText: string;
   hasQuote: boolean;
@@ -94,15 +128,26 @@ function extractPrimaryAndQuoteText(article: HTMLElement): {
   for (const node of nodes) {
     const normalized = normalizeTweetText(node.textContent ?? "");
     if (!normalized) continue;
-    if (isInsideQuote(node)) quoted.push(normalized);
+    if (isInsideQuote(node, mainTweetId)) quoted.push(normalized);
     else primary.push(normalized);
   }
 
-  const hasQuoteUi = Boolean(
-    article.querySelector(
-      '[data-testid="quoteTweet"], div[role="link"][href*="/status/"]',
-    ),
-  );
+  let hasQuoteUi = Boolean(article.querySelector('[data-testid="quoteTweet"]'));
+  if (!hasQuoteUi && mainTweetId) {
+    for (const link of article.querySelectorAll<HTMLElement>(
+      'a[href*="/status/"], div[role="link"][href*="/status/"]',
+    )) {
+      const href =
+        link.getAttribute("href") ||
+        link.querySelector("a[href*='/status/']")?.getAttribute("href") ||
+        "";
+      const id = statusIdFromHref(href);
+      if (id && id !== mainTweetId) {
+        hasQuoteUi = true;
+        break;
+      }
+    }
+  }
 
   return {
     text: primary.join(" ").trim(),
@@ -111,7 +156,6 @@ function extractPrimaryAndQuoteText(article: HTMLElement): {
   };
 }
 
-/** Extra haystack: links/aria that mention TikTok etc. (watermarks aren't OCR'd). */
 function extractLinkSignals(article: HTMLElement): string {
   const bits: string[] = [];
   for (const a of article.querySelectorAll("a[href]")) {
@@ -238,13 +282,12 @@ export function extractTweet(article: HTMLElement): TweetData | null {
   if (!id) return null;
 
   const { mediaKind, imageUrls, hasVideo } = extractMedia(article);
-  const { text, quoteText, hasQuote } = extractPrimaryAndQuoteText(article);
+  const { text, quoteText, hasQuote } = extractPrimaryAndQuoteText(article, id);
   const linkSignals = extractLinkSignals(article);
 
   return {
     id,
     text,
-    // Fold link signals into quoteText haystack for keyword matching
     quoteText: [quoteText, linkSignals].filter(Boolean).join(" ").trim(),
     handle: extractHandle(article),
     displayName: extractDisplayName(article),

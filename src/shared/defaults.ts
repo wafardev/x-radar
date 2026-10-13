@@ -290,6 +290,7 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "jokes",
   "entertainment",
   "fanpage",
+  "fan account",
   "stan account",
 ];
 

@@ -101,9 +101,7 @@ function mediaOnlyVerdict(
       ? tweet.mediaKind
       : tweet.hasVideo
         ? "video"
-        : tweet.hasQuote
-          ? "video"
-          : "none";
+        : "none";
   if (kind === "none") return null;
 
   const hide =
@@ -116,10 +114,42 @@ function mediaOnlyVerdict(
   return {
     label: "slop",
     confidence: 1,
-    reason: tweet.hasQuote
-      ? `No-text quote/${kind} hidden`
-      : `No-text ${kind} hidden`,
+    reason: `No-text ${kind} hidden`,
     source: "media_only",
+    hide: true,
+  };
+}
+
+/**
+ * Classic timeline slop: no own caption, just a video/image reacting to a quote.
+ * Always hide when media-only toggles would hide that media type (default on).
+ */
+function quoteReactionVerdict(
+  tweet: TweetData,
+  settings: Settings,
+): Verdict | null {
+  if (tweet.text.trim().length > 0) return null;
+  if (!tweet.hasQuote) return null;
+
+  const kind =
+    tweet.mediaKind !== "none"
+      ? tweet.mediaKind
+      : tweet.hasVideo
+        ? "video"
+        : "none";
+  if (kind === "none") return null;
+
+  const hide =
+    (kind === "image" && settings.hideNoTextImage) ||
+    (kind === "gif" && settings.hideNoTextGif) ||
+    (kind === "video" && settings.hideNoTextVideo);
+  if (!hide) return null;
+
+  return {
+    label: "slop",
+    confidence: 1,
+    reason: `Quote reaction ${kind} (no caption)`,
+    source: "quote_reaction",
     hide: true,
   };
 }
@@ -127,6 +157,7 @@ function mediaOnlyVerdict(
 function localRules(tweet: TweetData, settings: Settings): Verdict | null {
   return (
     accountVerdict(tweet.handle, settings) ||
+    quoteReactionVerdict(tweet, settings) ||
     mediaOnlyVerdict(tweet, settings) ||
     keywordVerdict(
       [tweet.text, tweet.quoteText, tweet.displayName, tweet.handle]
