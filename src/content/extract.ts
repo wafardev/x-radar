@@ -174,13 +174,12 @@ function isInsideQuote(el: Element, quoteRoots: Element[]): boolean {
 
 function extractPrimaryAndQuoteText(
   article: HTMLElement,
-  mainTweetId: string | null,
+  quoteRoots: Element[],
 ): {
   text: string;
   quoteText: string;
   hasQuote: boolean;
 } {
-  const quoteRoots = collectQuoteRoots(article, mainTweetId);
   const nodes = Array.from(
     article.querySelectorAll<HTMLElement>('[data-testid="tweetText"]'),
   );
@@ -226,45 +225,89 @@ function extractLinkSignals(article: HTMLElement): string {
   return bits.join(" ");
 }
 
-function extractMedia(article: HTMLElement): {
+function inMediaScope(
+  el: Element,
+  quoteRoots: Element[],
+  scope: "own" | "quote",
+): boolean {
+  // No quote card → everything is "own"; "quote" scope is empty.
+  if (quoteRoots.length === 0) return scope === "own";
+  const inside = isInsideQuote(el, quoteRoots);
+  return scope === "quote" ? inside : !inside;
+}
+
+function queryFirstInScope(
+  article: HTMLElement,
+  selector: string,
+  quoteRoots: Element[],
+  scope: "own" | "quote",
+): Element | null {
+  for (const el of article.querySelectorAll(selector)) {
+    if (inMediaScope(el, quoteRoots, scope)) return el;
+  }
+  return null;
+}
+
+function extractMedia(
+  article: HTMLElement,
+  quoteRoots: Element[],
+  scope: "own" | "quote",
+): {
   mediaKind: MediaKind;
   imageUrls: string[];
   hasVideo: boolean;
 } {
-  const video = article.querySelector("video");
-  const videoPlayer = article.querySelector(
+  const video = queryFirstInScope(
+    article,
+    "video",
+    quoteRoots,
+    scope,
+  ) as HTMLVideoElement | null;
+  const videoPlayer = queryFirstInScope(
+    article,
     '[data-testid="videoPlayer"], [data-testid="videoComponent"], [aria-label="Video player"], [aria-label*="Embedded video"]',
+    quoteRoots,
+    scope,
   );
-  const gifPlayer = article.querySelector(
+  const gifPlayer = queryFirstInScope(
+    article,
     '[data-testid="gifPlayer"], [aria-label*="GIF"]',
+    quoteRoots,
+    scope,
   );
-  const playButton = article.querySelector(
+  const playButton = queryFirstInScope(
+    article,
     '[data-testid="previewInterstitial"] [aria-label="Play"], button[aria-label="Play Video"], button[aria-label="Play"]',
+    quoteRoots,
+    scope,
   );
-  const videoStatusLink = article.querySelector(
+  const videoStatusLink = queryFirstInScope(
+    article,
     'a[href*="/video/"], a[href*="/status/"][href*="/video/"]',
+    quoteRoots,
+    scope,
   );
   const hasVideoUi = Boolean(
     video || videoPlayer || gifPlayer || playButton || videoStatusLink,
   );
 
-  const images = Array.from(
-    article.querySelectorAll<HTMLImageElement>(
-      '[data-testid="tweetPhoto"] img, [data-testid="card.layoutLarge.media"] img, [data-testid="videoPlayer"] img, [data-testid="videoComponent"] img',
-    ),
-  );
-
   const imageUrls: string[] = [];
-  for (const img of images) {
-    const src = img.currentSrc || img.src;
-    if (!src) continue;
-    if (src.includes("profile_images")) continue;
-    if (src.includes("emoji")) continue;
+  const pushImg = (src: string | null | undefined) => {
+    if (!src) return;
+    if (src.includes("profile_images") || src.includes("emoji")) return;
     imageUrls.push(src);
+  };
+
+  for (const img of article.querySelectorAll<HTMLImageElement>(
+    '[data-testid="tweetPhoto"] img, [data-testid="card.layoutLarge.media"] img, [data-testid="videoPlayer"] img, [data-testid="videoComponent"] img',
+  )) {
+    if (!inMediaScope(img, quoteRoots, scope)) continue;
+    pushImg(img.currentSrc || img.src);
   }
 
   if (imageUrls.length === 0) {
     for (const img of article.querySelectorAll("img")) {
+      if (!inMediaScope(img, quoteRoots, scope)) continue;
       const src = img.currentSrc || img.src;
       if (!src) continue;
       if (src.includes("profile_images") || src.includes("emoji")) continue;
@@ -285,6 +328,7 @@ function extractMedia(article: HTMLElement): {
 
   if (imageUrls.length === 0) {
     for (const el of article.querySelectorAll<HTMLElement>("div, span")) {
+      if (!inMediaScope(el, quoteRoots, scope)) continue;
       const bg = getComputedStyle(el).backgroundImage;
       if (!bg || bg === "none") continue;
       const m = bg.match(/url\(["']?(https:\/\/pbs\.twimg\.com\/[^"')]+)/);
@@ -299,16 +343,31 @@ function extractMedia(article: HTMLElement): {
     }
   }
 
-  const photoLink = article.querySelector('a[href*="/photo/"]');
-  const hasPhotoUi = Boolean(
-    photoLink || article.querySelector('[data-testid="tweetPhoto"]'),
+  const photoLink = queryFirstInScope(
+    article,
+    'a[href*="/photo/"]',
+    quoteRoots,
+    scope,
   );
+  const tweetPhoto = queryFirstInScope(
+    article,
+    '[data-testid="tweetPhoto"]',
+    quoteRoots,
+    scope,
+  );
+  const hasPhotoUi = Boolean(photoLink || tweetPhoto);
 
   let mediaKind: MediaKind = "none";
   if (hasVideoUi || video) {
+    const gifLabel = queryFirstInScope(
+      article,
+      '[aria-label*="GIF"]',
+      quoteRoots,
+      scope,
+    );
     const labeledGif =
       Boolean(gifPlayer) ||
-      Boolean(article.querySelector('[aria-label*="GIF"]')) ||
+      Boolean(gifLabel) ||
       (video?.loop === true && (video.duration || 0) > 0 && video.duration < 15);
     mediaKind = labeledGif ? "gif" : "video";
   } else if (imageUrls.length > 0 || hasPhotoUi) {
@@ -326,8 +385,13 @@ export function extractTweet(article: HTMLElement): TweetData | null {
   const id = extractTweetId(article);
   if (!id) return null;
 
-  const { mediaKind, imageUrls, hasVideo } = extractMedia(article);
-  const { text, quoteText, hasQuote } = extractPrimaryAndQuoteText(article, id);
+  const quoteRoots = collectQuoteRoots(article, id);
+  const { text, quoteText, hasQuote } = extractPrimaryAndQuoteText(
+    article,
+    quoteRoots,
+  );
+  const own = extractMedia(article, quoteRoots, "own");
+  const quoted = extractMedia(article, quoteRoots, "quote");
   const linkSignals = extractLinkSignals(article);
 
   return {
@@ -336,9 +400,10 @@ export function extractTweet(article: HTMLElement): TweetData | null {
     quoteText: [quoteText, linkSignals].filter(Boolean).join(" ").trim(),
     handle: extractHandle(article),
     displayName: extractDisplayName(article),
-    mediaKind,
-    imageUrls,
-    hasVideo,
+    mediaKind: own.mediaKind,
+    quoteMediaKind: quoted.mediaKind,
+    imageUrls: own.imageUrls.length > 0 ? own.imageUrls : quoted.imageUrls,
+    hasVideo: own.hasVideo || quoted.hasVideo,
     hasQuote,
   };
 }

@@ -10,6 +10,7 @@ export type VerdictSource =
   | "keyword_slop"
   | "media_only"
   | "quote_reaction"
+  | "quote_of_media"
   | "manual_slop"
   | "text_ai"
   | "vision_ai"
@@ -25,7 +26,10 @@ export interface TweetData {
   handle: string;
   /** Profile display name / title */
   displayName: string;
+  /** Media attached to the outer tweet (excludes quoted embed) */
   mediaKind: MediaKind;
+  /** Media inside the quoted tweet, if any */
+  quoteMediaKind: MediaKind;
   imageUrls: string[];
   hasVideo: boolean;
   hasQuote: boolean;
