@@ -3,17 +3,36 @@ import type { Settings, Verdict } from "../shared/types";
 const CRYPTO_WEIGHT = 1.2;
 const SLOP_WEIGHT = 1.0;
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Whole-word / bounded match so "eth" doesn't hit inside "something". */
+function keywordMatches(haystack: string, kw: string): boolean {
+  const needle = kw.toLowerCase().trim();
+  if (!needle) return false;
+
+  if (needle.startsWith("$")) {
+    const re = new RegExp(
+      `(?:^|[^a-z0-9])${escapeRegex(needle)}(?=[^a-z0-9]|$)`,
+      "i",
+    );
+    return re.test(haystack);
+  }
+
+  // Bounded match: not glued to letters/digits on either side
+  const re = new RegExp(
+    `(?:^|[^a-z0-9])${escapeRegex(needle)}(?=[^a-z0-9]|$)`,
+    "i",
+  );
+  return re.test(haystack);
+}
+
 function countHits(text: string, keywords: string[]): number {
   const lower = text.toLowerCase();
   let hits = 0;
   for (const kw of keywords) {
-    if (!kw) continue;
-    if (kw.startsWith("$")) {
-      const re = new RegExp(`(?:^|\\s|[^a-z0-9])\\${kw}\\b`, "i");
-      if (re.test(lower)) hits += 1;
-      continue;
-    }
-    if (lower.includes(kw)) hits += 1;
+    if (keywordMatches(lower, kw)) hits += 1;
   }
   return hits;
 }
