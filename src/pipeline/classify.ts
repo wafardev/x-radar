@@ -1,4 +1,4 @@
-import { accountVerdict, keywordVerdict, nameVerdict } from "./keywords";
+import { accountVerdict, keywordVerdict } from "./keywords";
 import type { Settings, TweetData, Verdict } from "../shared/types";
 import { sendMessage } from "../shared/messaging";
 import { bumpStat, isTweetStamped } from "../shared/settings";
@@ -100,11 +100,12 @@ function localRules(
 ): Verdict | null {
   return (
     accountVerdict(tweet.handle, settings) ||
-    nameVerdict(tweet.displayName, tweet.handle, settings) ||
     mediaOnlyVerdict(tweet, settings) ||
-    // Match slop keywords in primary caption AND quoted text / link signals
+    // One slop list: caption + quote + display name + handle
     keywordVerdict(
-      [tweet.text, tweet.quoteText].filter(Boolean).join("\n"),
+      [tweet.text, tweet.quoteText, tweet.displayName, tweet.handle]
+        .filter(Boolean)
+        .join("\n"),
       settings,
     )
   );

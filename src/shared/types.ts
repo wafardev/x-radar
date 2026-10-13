@@ -8,7 +8,6 @@ export type VerdictSource =
   | "account_block"
   | "keyword_crypto"
   | "keyword_slop"
-  | "name_slop"
   | "media_only"
   | "manual_slop"
   | "text_ai"
@@ -60,9 +59,8 @@ export interface Settings {
   allowHandles: string[];
   blockHandles: string[];
   cryptoKeywords: string[];
+  /** Applied to caption, quote text, display name, and handle */
   slopKeywords: string[];
-  /** Hide if display name / title contains these */
-  nameKeywords: string[];
 }
 
 export interface SessionStats {

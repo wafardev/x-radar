@@ -267,7 +267,7 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "wwe",
   "soccer",
   "fifa",
-  // Viral fluff
+  // Viral fluff / name-style handles
   "relatable",
   "ratio",
   "ratioed",
@@ -277,16 +277,8 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "main character",
   "skibidi",
   "goofy ahh",
-];
-
-/** Matched against display name / title (and handle). */
-export const DEFAULT_NAME_KEYWORDS = [
-  "memes",
-  "meme",
   "videos",
   "video",
-  "funny",
-  "comedy",
   "humor",
   "humour",
   "shitpost",
@@ -296,8 +288,6 @@ export const DEFAULT_NAME_KEYWORDS = [
   "clipz",
   "fails",
   "jokes",
-  "lol ",
-  "lmao",
   "entertainment",
   "fanpage",
   "stan account",
@@ -318,7 +308,6 @@ export const DEFAULT_SETTINGS: Settings = {
   blockHandles: [],
   cryptoKeywords: DEFAULT_CRYPTO_KEYWORDS,
   slopKeywords: DEFAULT_SLOP_KEYWORDS,
-  nameKeywords: DEFAULT_NAME_KEYWORDS,
 };
 
 export const EMPTY_STATS: SessionStats = {

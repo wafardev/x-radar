@@ -40,7 +40,6 @@ export function keywordVerdict(
 
   if (slopHits === 0 && cryptoHits === 0) return null;
 
-  // Pure slop hit(s) → always hide (user expects "minecraft" to kill the tweet)
   if (slopHits >= 1 && cryptoHits === 0) {
     return {
       label: "slop",
@@ -51,7 +50,6 @@ export function keywordVerdict(
     };
   }
 
-  // Pure crypto hit(s) → keep
   if (cryptoHits >= 1 && slopHits === 0) {
     return {
       label: "crypto",
@@ -62,8 +60,7 @@ export function keywordVerdict(
     };
   }
 
-  // Mixed: strictness tilts the tie-break (higher = hide more)
-  const margin = 0.4 - settings.strictness * 0.8; // 0.4 .. -0.4
+  const margin = 0.4 - settings.strictness * 0.8;
   if (score <= margin) {
     return {
       label: "slop",
@@ -110,29 +107,5 @@ export function accountVerdict(
     };
   }
 
-  return null;
-}
-
-/** Hide when display name / title (or handle) contains a name keyword. */
-export function nameVerdict(
-  displayName: string,
-  handle: string,
-  settings: Settings,
-): Verdict | null {
-  const haystack = `${displayName} ${handle}`.toLowerCase();
-  if (!haystack.trim()) return null;
-
-  for (const kw of settings.nameKeywords) {
-    if (!kw) continue;
-    if (haystack.includes(kw)) {
-      return {
-        label: "slop",
-        confidence: 1,
-        reason: `Name/title contains "${kw}"`,
-        source: "name_slop",
-        hide: true,
-      };
-    }
-  }
   return null;
 }

@@ -17,7 +17,10 @@ function normalizeKeywordList(list: string[]): string[] {
     .filter((k, i, arr) => arr.indexOf(k) === i);
 }
 
-export function normalizeSettings(partial?: Partial<Settings>): Settings {
+type LegacyPartial = Partial<Settings> & { nameKeywords?: string[] };
+
+export function normalizeSettings(partial?: LegacyPartial): Settings {
+  const legacyNames = partial?.nameKeywords ?? [];
   const merged: Settings = { ...DEFAULT_SETTINGS, ...partial };
   return {
     ...merged,
@@ -30,12 +33,10 @@ export function normalizeSettings(partial?: Partial<Settings>): Settings {
     cryptoKeywords: normalizeKeywordList(
       merged.cryptoKeywords ?? DEFAULT_SETTINGS.cryptoKeywords,
     ),
-    slopKeywords: normalizeKeywordList(
-      merged.slopKeywords ?? DEFAULT_SETTINGS.slopKeywords,
-    ),
-    nameKeywords: normalizeKeywordList(
-      merged.nameKeywords ?? DEFAULT_SETTINGS.nameKeywords,
-    ),
+    slopKeywords: normalizeKeywordList([
+      ...(merged.slopKeywords ?? DEFAULT_SETTINGS.slopKeywords),
+      ...legacyNames,
+    ]),
     strictness: Math.min(1, Math.max(0, merged.strictness ?? 0.5)),
     apiBaseUrl: (merged.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl).replace(
       /\/$/,
