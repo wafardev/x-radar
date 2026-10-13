@@ -159,20 +159,11 @@ async function init(): Promise<void> {
     setStatus("Keywords reset — click Save", "ok");
   });
 
-  $("updateBtn").addEventListener("click", async () => {
-    try {
-      ($("cryptoKeywords") as HTMLTextAreaElement).value = listToText(
-        DEFAULT_CRYPTO_KEYWORDS,
-      );
-      ($("slopKeywords") as HTMLTextAreaElement).value = listToText(
-        DEFAULT_SLOP_KEYWORDS,
-      );
-      await persistForm();
-      setStatus("Reloading…", "ok");
-      chrome.runtime.reload();
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Update failed", "err");
-    }
+  $("updateBtn").addEventListener("click", () => {
+    // Reload only — never touch saved keywords/settings.
+    // Use "Reset keywords to defaults" if you want the bundled lists.
+    setStatus("Reloading…", "ok");
+    chrome.runtime.reload();
   });
 
   setInterval(() => {

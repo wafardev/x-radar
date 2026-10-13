@@ -1,6 +1,6 @@
 {
   "name": "twitter-slopradar",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "private": true,
   "description": "Chrome extension that filters X/Twitter into a crypto-work feed",
   "type": "module",
