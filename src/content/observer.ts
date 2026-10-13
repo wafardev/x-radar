@@ -1,4 +1,5 @@
 import { classifyTweet } from "../pipeline/classify";
+import { captureMediaFrame } from "../pipeline/vision";
 import type { Settings, Verdict } from "../shared/types";
 import { loadSettings } from "../shared/settings";
 import {
@@ -76,8 +77,10 @@ async function processArticle(article: HTMLElement): Promise<void> {
     }
 
     const verdict = await classifyTweet({
+      article,
       tweet,
       settings: s,
+      captureFrame: captureMediaFrame,
     });
 
     await applyWithStamp(article, tweet.id, verdict, s.stampMode);

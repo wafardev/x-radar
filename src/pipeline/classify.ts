@@ -1,11 +1,17 @@
+import { needsVision } from "./ai";
 import { accountVerdict, keywordVerdict } from "./keywords";
 import type { Settings, TweetData, Verdict } from "../shared/types";
 import { sendMessage } from "../shared/messaging";
 import { bumpStat, isTweetStamped } from "../shared/settings";
 
 export interface ClassifyContext {
+  article: HTMLElement;
   tweet: TweetData;
   settings: Settings;
+  captureFrame: (
+    article: HTMLElement,
+    tweet: TweetData,
+  ) => Promise<string | null>;
 }
 
 async function getCache(tweetId: string): Promise<Verdict | null> {
@@ -43,8 +49,33 @@ async function classifyTextRemote(tweet: TweetData): Promise<Verdict> {
   >({
     type: "CLASSIFY_TEXT",
     tweetId: tweet.id,
-    text: tweet.text,
+    text: [tweet.text, tweet.quoteText].filter(Boolean).join("\n"),
     handle: tweet.handle,
+  });
+  if (!res.ok) {
+    return {
+      label: "unsure",
+      confidence: 0,
+      reason: res.error,
+      source: "fail_open",
+      hide: false,
+    };
+  }
+  return res.verdict;
+}
+
+async function classifyVisionRemote(
+  tweet: TweetData,
+  imageDataUrl: string,
+): Promise<Verdict> {
+  const res = await sendMessage<
+    { ok: true; verdict: Verdict } | { ok: false; error: string }
+  >({
+    type: "CLASSIFY_VISION",
+    tweetId: tweet.id,
+    text: [tweet.text, tweet.quoteText].filter(Boolean).join("\n"),
+    handle: tweet.handle,
+    imageDataUrl,
   });
   if (!res.ok) {
     return {
@@ -62,7 +93,6 @@ function mediaOnlyVerdict(
   tweet: TweetData,
   settings: Settings,
 ): Verdict | null {
-  // Primary caption only — quoted text must not block this
   const noText = tweet.text.trim().length === 0;
   if (!noText) return null;
 
@@ -94,14 +124,10 @@ function mediaOnlyVerdict(
   };
 }
 
-function localRules(
-  tweet: TweetData,
-  settings: Settings,
-): Verdict | null {
+function localRules(tweet: TweetData, settings: Settings): Verdict | null {
   return (
     accountVerdict(tweet.handle, settings) ||
     mediaOnlyVerdict(tweet, settings) ||
-    // One slop list: caption + quote + display name + handle
     keywordVerdict(
       [tweet.text, tweet.quoteText, tweet.displayName, tweet.handle]
         .filter(Boolean)
@@ -112,8 +138,7 @@ function localRules(
 }
 
 /**
- * Local rules always win over cache (so adding "minecraft" applies immediately).
- * Cache is only reused for AI / fail-open results after local rules miss.
+ * Local rules → text AI → vision (OpenRouter) for ambiguous media.
  */
 export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
   const { tweet, settings } = ctx;
@@ -153,9 +178,32 @@ export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
   }
 
   const hasApi = Boolean(settings.apiKey);
+  let textVerdict: Verdict | null = null;
 
-  if (hasApi && tweet.text.trim().length > 0) {
-    const textVerdict = await classifyTextRemote(tweet);
+  if (hasApi && (tweet.text.trim().length > 0 || tweet.quoteText.trim().length > 0)) {
+    textVerdict = await classifyTextRemote(tweet);
+    if (!needsVision(tweet.text || tweet.quoteText, tweet.mediaKind, textVerdict)) {
+      await setCache(tweet.id, textVerdict);
+      await recordLocal(textVerdict);
+      return textVerdict;
+    }
+  }
+
+  if (
+    hasApi &&
+    tweet.mediaKind !== "none" &&
+    needsVision(tweet.text || tweet.quoteText, tweet.mediaKind, textVerdict)
+  ) {
+    const frame = await ctx.captureFrame(ctx.article, tweet);
+    if (frame) {
+      const visionVerdict = await classifyVisionRemote(tweet, frame);
+      await setCache(tweet.id, visionVerdict);
+      await recordLocal(visionVerdict);
+      return visionVerdict;
+    }
+  }
+
+  if (textVerdict) {
     await setCache(tweet.id, textVerdict);
     await recordLocal(textVerdict);
     return textVerdict;
