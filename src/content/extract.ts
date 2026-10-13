@@ -85,30 +85,91 @@ export function normalizeTweetText(raw: string): string {
   return stripped;
 }
 
-function isInsideQuote(el: Element, mainTweetId: string | null): boolean {
-  if (el.closest('[data-testid="quoteTweet"]')) return true;
+/**
+ * Modern X quote cards are usually `div[role="link"][tabindex]` without an
+ * href — click navigates via JS. Older builds used data-testid="quoteTweet".
+ * Treat those wrappers (and nested articles) as quote roots so quoted text
+ * never leaks into the outer caption.
+ */
+function collectQuoteRoots(
+  article: HTMLElement,
+  mainTweetId: string | null,
+): Element[] {
+  const roots: Element[] = [];
+  const seen = new Set<Element>();
 
-  const nestedArticle = el.closest("article");
-  const rootArticle = el.closest('article[data-testid="tweet"]');
-  if (
-    nestedArticle &&
-    rootArticle &&
-    nestedArticle !== rootArticle &&
-    rootArticle.contains(nestedArticle)
-  ) {
-    return true;
+  const add = (el: Element | null | undefined) => {
+    if (!el || el === article || !article.contains(el) || seen.has(el)) return;
+    // Prefer outer-most card when nested.
+    for (let i = roots.length - 1; i >= 0; i--) {
+      const existing = roots[i]!;
+      if (existing.contains(el)) return;
+      if (el.contains(existing)) {
+        seen.delete(existing);
+        roots.splice(i, 1);
+      }
+    }
+    seen.add(el);
+    roots.push(el);
+  };
+
+  for (const el of article.querySelectorAll('[data-testid="quoteTweet"]')) {
+    add(el);
   }
 
-  const statusEl = el.closest<HTMLElement>(
-    'a[href*="/status/"], div[role="link"][href*="/status/"]',
-  );
-  if (!statusEl || !mainTweetId) return false;
-  const href =
-    statusEl.getAttribute("href") ||
-    statusEl.querySelector("a[href*='/status/']")?.getAttribute("href") ||
-    "";
-  const id = statusIdFromHref(href);
-  return Boolean(id && id !== mainTweetId);
+  for (const nested of article.querySelectorAll("article")) {
+    if (nested !== article) add(nested);
+  }
+
+  // Clickable quote card: role=link + tabindex, with its own author row.
+  for (const el of article.querySelectorAll<HTMLElement>(
+    'div[role="link"][tabindex]',
+  )) {
+    if (!el.querySelector('[data-testid="User-Name"]')) continue;
+    // Must point at a *different* status when we can tell.
+    if (mainTweetId) {
+      let otherStatus = false;
+      for (const link of el.querySelectorAll<HTMLAnchorElement>(
+        'a[href*="/status/"]',
+      )) {
+        const id = statusIdFromHref(link.getAttribute("href"));
+        if (id && id !== mainTweetId) {
+          otherStatus = true;
+          break;
+        }
+      }
+      // Some cards only expose /i/status via aria / child without matching yet —
+      // still treat User-Name + tweetText|media inside role=link as a quote.
+      if (
+        !otherStatus &&
+        !el.querySelector('[data-testid="tweetText"], [data-testid="tweetPhoto"], video')
+      ) {
+        continue;
+      }
+    }
+    add(el);
+  }
+
+  // Fallback: any status link to another id → nearest role=link card.
+  if (mainTweetId) {
+    for (const link of article.querySelectorAll<HTMLAnchorElement>(
+      'a[href*="/status/"]',
+    )) {
+      const id = statusIdFromHref(link.getAttribute("href"));
+      if (!id || id === mainTweetId) continue;
+      const card =
+        link.closest('[data-testid="quoteTweet"]') ||
+        link.closest('div[role="link"][tabindex]') ||
+        link.closest("article");
+      add(card);
+    }
+  }
+
+  return roots;
+}
+
+function isInsideQuote(el: Element, quoteRoots: Element[]): boolean {
+  return quoteRoots.some((root) => root.contains(el));
 }
 
 function extractPrimaryAndQuoteText(
@@ -119,6 +180,7 @@ function extractPrimaryAndQuoteText(
   quoteText: string;
   hasQuote: boolean;
 } {
+  const quoteRoots = collectQuoteRoots(article, mainTweetId);
   const nodes = Array.from(
     article.querySelectorAll<HTMLElement>('[data-testid="tweetText"]'),
   );
@@ -128,31 +190,14 @@ function extractPrimaryAndQuoteText(
   for (const node of nodes) {
     const normalized = normalizeTweetText(node.textContent ?? "");
     if (!normalized) continue;
-    if (isInsideQuote(node, mainTweetId)) quoted.push(normalized);
+    if (isInsideQuote(node, quoteRoots)) quoted.push(normalized);
     else primary.push(normalized);
-  }
-
-  let hasQuoteUi = Boolean(article.querySelector('[data-testid="quoteTweet"]'));
-  if (!hasQuoteUi && mainTweetId) {
-    for (const link of article.querySelectorAll<HTMLElement>(
-      'a[href*="/status/"], div[role="link"][href*="/status/"]',
-    )) {
-      const href =
-        link.getAttribute("href") ||
-        link.querySelector("a[href*='/status/']")?.getAttribute("href") ||
-        "";
-      const id = statusIdFromHref(href);
-      if (id && id !== mainTweetId) {
-        hasQuoteUi = true;
-        break;
-      }
-    }
   }
 
   return {
     text: primary.join(" ").trim(),
     quoteText: quoted.join(" ").trim(),
-    hasQuote: hasQuoteUi || quoted.length > 0,
+    hasQuote: quoteRoots.length > 0 || quoted.length > 0,
   };
 }
 
