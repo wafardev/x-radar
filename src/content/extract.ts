@@ -357,8 +357,16 @@ function extractMedia(
   );
   const hasPhotoUi = Boolean(photoLink || tweetPhoto);
 
+  const thumbLooksLikeVideo = imageUrls.some(
+    (u) =>
+      u.includes("amplify_video_thumb") ||
+      u.includes("ext_tw_video_thumb") ||
+      u.includes("tweet_video_thumb") ||
+      u.includes("video_thumb"),
+  );
+
   let mediaKind: MediaKind = "none";
-  if (hasVideoUi || video) {
+  if (hasVideoUi || video || thumbLooksLikeVideo) {
     const gifLabel = queryFirstInScope(
       article,
       '[aria-label*="GIF"]',

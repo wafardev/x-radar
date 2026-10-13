@@ -1,6 +1,6 @@
 import { classifyTweet } from "../pipeline/classify";
 import { captureMediaFrame } from "../pipeline/vision";
-import type { Settings, Verdict } from "../shared/types";
+import type { Settings, TweetData, Verdict } from "../shared/types";
 import { loadSettings } from "../shared/settings";
 import {
   applyVerdict,
@@ -13,12 +13,54 @@ import { extractTweet, getTweetArticles } from "./extract";
 import { playSlopStamp } from "./stamp";
 
 const processedGen = new WeakMap<HTMLElement, number>();
+/** Last extract fingerprint — used to reclassify when media hydrates later. */
+const lastFingerprint = new WeakMap<HTMLElement, string>();
 const inFlight = new Set<string>();
 
 let settings: Settings | null = null;
 let queue: HTMLElement[] = [];
 let draining = false;
 let generation = 0;
+
+function tweetFingerprint(tweet: TweetData): string {
+  return [
+    tweet.id,
+    tweet.text.length,
+    tweet.quoteText.length,
+    tweet.mediaKind,
+    tweet.quoteMediaKind,
+    tweet.hasQuote ? "1" : "0",
+    tweet.hasVideo ? "1" : "0",
+    String(tweet.imageUrls.length),
+  ].join("|");
+}
+
+function closestTweetArticle(node: Element): HTMLElement | null {
+  return node.closest('article[data-testid="tweet"]');
+}
+
+/** Media may appear after first paint — allow another pass when fingerprint grows. */
+function shouldReclassify(
+  article: HTMLElement,
+  tweet: TweetData,
+): boolean {
+  if (processedGen.get(article) !== generation) return true;
+  const prev = lastFingerprint.get(article);
+  if (!prev) return true;
+  const next = tweetFingerprint(tweet);
+  if (prev === next) return false;
+  // Only re-run when media/quote signal appears or text was empty and changes.
+  const prevParts = prev.split("|");
+  const nextParts = next.split("|");
+  // indices: id, textLen, quoteLen, mediaKind, quoteMediaKind, hasQuote, hasVideo, imageCount
+  const mediaGrew =
+    (prevParts[3] === "none" && nextParts[3] !== "none") ||
+    (prevParts[4] === "none" && nextParts[4] !== "none") ||
+    (prevParts[6] === "0" && nextParts[6] === "1") ||
+    (Number(prevParts[7] || 0) === 0 && Number(nextParts[7] || 0) > 0) ||
+    (prevParts[5] === "0" && nextParts[5] === "1");
+  return mediaGrew;
+}
 
 async function refreshSettings(): Promise<Settings> {
   settings = await loadSettings();
@@ -31,6 +73,7 @@ function applySettingsSideEffects(s: Settings): void {
   queue = [];
   revealAll();
   refreshChip();
+  // New generation → shouldReclassify allows every article again.
   scan(document);
 }
 
@@ -54,13 +97,15 @@ async function applyWithStamp(
 }
 
 async function processArticle(article: HTMLElement): Promise<void> {
-  if (processedGen.get(article) === generation) return;
   const tweet = extractTweet(article);
   if (!tweet) return;
 
+  if (!shouldReclassify(article, tweet)) return;
   if (inFlight.has(tweet.id)) return;
+
   inFlight.add(tweet.id);
   processedGen.set(article, generation);
+  lastFingerprint.set(article, tweetFingerprint(tweet));
   markPending(article);
 
   try {
@@ -73,6 +118,14 @@ async function processArticle(article: HTMLElement): Promise<void> {
         source: "disabled",
         hide: false,
       });
+      return;
+    }
+
+    // Already hidden this generation — don't re-stamp on media hydration.
+    if (
+      article.getAttribute("data-slopradar-label") === "slop" &&
+      hideTargetIsHidden(article)
+    ) {
       return;
     }
 
@@ -97,6 +150,12 @@ async function processArticle(article: HTMLElement): Promise<void> {
   }
 }
 
+function hideTargetIsHidden(article: HTMLElement): boolean {
+  const cell =
+    article.closest('[data-testid="cellInnerDiv"]') || article;
+  return cell.getAttribute("data-slopradar") === "hidden";
+}
+
 async function drainQueue(): Promise<void> {
   if (draining) return;
   draining = true;
@@ -112,7 +171,6 @@ async function drainQueue(): Promise<void> {
 }
 
 function enqueue(article: HTMLElement): void {
-  if (processedGen.get(article) === generation) return;
   if (!queue.includes(article)) queue.push(article);
   void drainQueue();
 }
@@ -121,6 +179,19 @@ function scan(root: ParentNode = document): void {
   for (const article of getTweetArticles(root)) {
     enqueue(article);
   }
+}
+
+function enqueueFromMutation(node: HTMLElement): void {
+  if (node.matches?.('article[data-testid="tweet"]')) {
+    enqueue(node);
+    return;
+  }
+  // Media/players often hydrate inside an already-seen article.
+  const parentArticle = closestTweetArticle(node);
+  if (parentArticle) {
+    enqueue(parentArticle);
+  }
+  scan(node);
 }
 
 export async function startObserver(): Promise<void> {
@@ -134,11 +205,7 @@ export async function startObserver(): Promise<void> {
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
-        if (node.matches?.('article[data-testid="tweet"]')) {
-          enqueue(node);
-        } else {
-          scan(node);
-        }
+        enqueueFromMutation(node);
       }
     }
   });
