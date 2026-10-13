@@ -1,4 +1,8 @@
 import {
+  DEFAULT_CRYPTO_KEYWORDS,
+  DEFAULT_SLOP_KEYWORDS,
+} from "../shared/defaults";
+import {
   loadSettings,
   loadStats,
   parseHandleList,
@@ -115,6 +119,33 @@ async function init(): Promise<void> {
     await chrome.runtime.sendMessage({ type: "RESET_STATS" });
     await refreshStats();
     setStatus("Stats reset", "ok");
+  });
+
+  $("resetKeywordsBtn").addEventListener("click", () => {
+    ($("cryptoKeywords") as HTMLTextAreaElement).value = listToText(
+      DEFAULT_CRYPTO_KEYWORDS,
+    );
+    ($("slopKeywords") as HTMLTextAreaElement).value = listToText(
+      DEFAULT_SLOP_KEYWORDS,
+    );
+    setStatus("Keywords reset — click Save", "ok");
+  });
+
+  $("updateBtn").addEventListener("click", async () => {
+    try {
+      ($("cryptoKeywords") as HTMLTextAreaElement).value = listToText(
+        DEFAULT_CRYPTO_KEYWORDS,
+      );
+      ($("slopKeywords") as HTMLTextAreaElement).value = listToText(
+        DEFAULT_SLOP_KEYWORDS,
+      );
+      const next = readForm();
+      await saveSettings(next);
+      await notifyTabs();
+      setStatus("Updated defaults", "ok");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Update failed", "err");
+    }
   });
 
   setInterval(() => {

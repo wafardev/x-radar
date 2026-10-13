@@ -70,15 +70,15 @@ async function chatComplete(
   return data.choices?.[0]?.message?.content ?? "";
 }
 
-const TEXT_SYSTEM = `You classify X/Twitter posts for a crypto professional who wants a work-only feed.
-Label "crypto" if the post is about crypto markets, protocols, trading, research, infra, regulation of crypto, or adjacent finance/tech that a crypto worker would need.
-Label "slop" if it is entertainment, memes, jokes, celebrity, sports, dating, lifestyle flexing, or viral fluff unrelated to crypto work.
+const TEXT_SYSTEM = `You classify X/Twitter posts for a work-only feed.
+KEEP (label "crypto") only if the post is about: cryptocurrency/web3, traditional finance/markets/macro, or cybersecurity/hacking/infosec/vulnerabilities/exploits.
+HIDE (label "slop") if it is entertainment, films, sports, dating, looks/lifestyle, memes, celebrity, gossip, or anything outside crypto/finance/cybersecurity.
 Label "unsure" only when truly ambiguous.
 Reply with JSON only: {"label":"crypto"|"slop"|"unsure","confidence":0-1,"reason":"short"}`;
 
-const VISION_SYSTEM = `You classify a tweet media frame for a crypto professional's work feed.
-Label "crypto" if the image/video frame relates to crypto charts, protocols, on-chain data, market news, or work-relevant tech.
-Label "slop" if it is a meme, joke, celebrity, sports, lifestyle, or entertainment content.
+const VISION_SYSTEM = `You classify a tweet media frame for a work-only feed.
+KEEP (label "crypto") if the frame relates to crypto/markets charts, finance, or cybersecurity/hacking/technical security content.
+HIDE (label "slop") if it is a meme, film/TV, sports, dating, looks, lifestyle, celebrity, or other entertainment.
 Label "unsure" only when unclear.
 Reply with JSON only: {"label":"crypto"|"slop"|"unsure","confidence":0-1,"reason":"short"}`;
 
