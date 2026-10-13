@@ -301,7 +301,9 @@ export const DEFAULT_SETTINGS: Settings = {
   hideNoTextVideo: true,
   apiBaseUrl: "https://openrouter.ai/api/v1",
   apiKey: "",
-  textModel: "google/gemini-2.5-flash-lite",
+  // Text-only tweets: cheap non-vision model is enough
+  textModel: "google/gemma-3-4b-it",
+  // Media frames: needs multimodal
   visionModel: "google/gemini-2.5-flash-lite",
   strictness: 0.5,
   allowHandles: [],
