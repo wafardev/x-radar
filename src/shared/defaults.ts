@@ -194,7 +194,7 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "gf",
   "bf",
   "clavicular",
-  // Entertainment / memes
+  // Entertainment / memes / games
   "lol",
   "lmao",
   "lmfao",
@@ -205,6 +205,9 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "hilarious",
   "comedy",
   "joke",
+  "minecraft",
+  "fortnite",
+  "roblox",
   "netflix",
   "disney+",
   "movie",
@@ -256,6 +259,30 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "goofy ahh",
 ];
 
+/** Matched against display name / title (and handle). */
+export const DEFAULT_NAME_KEYWORDS = [
+  "memes",
+  "meme",
+  "videos",
+  "video",
+  "funny",
+  "comedy",
+  "humor",
+  "humour",
+  "shitpost",
+  "shitposts",
+  "viral",
+  "clips",
+  "clipz",
+  "fails",
+  "jokes",
+  "lol ",
+  "lmao",
+  "entertainment",
+  "fanpage",
+  "stan account",
+];
+
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   passthrough: false,
@@ -271,6 +298,7 @@ export const DEFAULT_SETTINGS: Settings = {
   blockHandles: [],
   cryptoKeywords: DEFAULT_CRYPTO_KEYWORDS,
   slopKeywords: DEFAULT_SLOP_KEYWORDS,
+  nameKeywords: DEFAULT_NAME_KEYWORDS,
 };
 
 export const EMPTY_STATS: SessionStats = {

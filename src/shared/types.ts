@@ -8,6 +8,7 @@ export type VerdictSource =
   | "account_block"
   | "keyword_crypto"
   | "keyword_slop"
+  | "name_slop"
   | "media_only"
   | "text_ai"
   | "vision_ai"
@@ -19,6 +20,8 @@ export interface TweetData {
   id: string;
   text: string;
   handle: string;
+  /** Profile display name / title */
+  displayName: string;
   mediaKind: MediaKind;
   imageUrls: string[];
   hasVideo: boolean;
@@ -50,6 +53,8 @@ export interface Settings {
   blockHandles: string[];
   cryptoKeywords: string[];
   slopKeywords: string[];
+  /** Hide if display name / title contains these */
+  nameKeywords: string[];
 }
 
 export interface SessionStats {

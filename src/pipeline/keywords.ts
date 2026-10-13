@@ -28,36 +28,59 @@ export function scoreKeywords(
   return { cryptoHits, slopHits, score };
 }
 
-/** Strictness 0 = lenient (need more slop to hide), 1 = strict (hide sooner). */
+/**
+ * Denylist is hard: any slop keyword hit hides unless crypto signals outweigh it.
+ * Strictness only matters when both crypto and slop keywords are present.
+ */
 export function keywordVerdict(
   text: string,
   settings: Settings,
 ): Verdict | null {
   const { cryptoHits, slopHits, score } = scoreKeywords(text, settings);
-  const cryptoThreshold = 1.5 - settings.strictness * 0.5; // 1.5..1.0
-  const slopThreshold = -(1.2 - settings.strictness * 0.7); // -1.2..-0.5
 
-  if (score >= cryptoThreshold && cryptoHits >= 1) {
-    return {
-      label: "crypto",
-      confidence: Math.min(0.95, 0.7 + cryptoHits * 0.08),
-      reason: `Keyword crypto hits: ${cryptoHits}`,
-      source: "keyword_crypto",
-      hide: false,
-    };
-  }
+  if (slopHits === 0 && cryptoHits === 0) return null;
 
-  if (score <= slopThreshold && slopHits >= 1) {
+  // Pure slop hit(s) → always hide (user expects "minecraft" to kill the tweet)
+  if (slopHits >= 1 && cryptoHits === 0) {
     return {
       label: "slop",
-      confidence: Math.min(0.95, 0.7 + slopHits * 0.08),
-      reason: `Keyword slop hits: ${slopHits}`,
+      confidence: Math.min(0.99, 0.85 + slopHits * 0.05),
+      reason: `Slop keyword hit (${slopHits})`,
       source: "keyword_slop",
       hide: true,
     };
   }
 
-  return null;
+  // Pure crypto hit(s) → keep
+  if (cryptoHits >= 1 && slopHits === 0) {
+    return {
+      label: "crypto",
+      confidence: Math.min(0.99, 0.85 + cryptoHits * 0.05),
+      reason: `Keep keyword hit (${cryptoHits})`,
+      source: "keyword_crypto",
+      hide: false,
+    };
+  }
+
+  // Mixed: strictness tilts the tie-break (higher = hide more)
+  const margin = 0.4 - settings.strictness * 0.8; // 0.4 .. -0.4
+  if (score <= margin) {
+    return {
+      label: "slop",
+      confidence: Math.min(0.95, 0.7 + slopHits * 0.08),
+      reason: `Mixed keywords → slop (score ${score.toFixed(2)})`,
+      source: "keyword_slop",
+      hide: true,
+    };
+  }
+
+  return {
+    label: "crypto",
+    confidence: Math.min(0.95, 0.7 + cryptoHits * 0.08),
+    reason: `Mixed keywords → keep (score ${score.toFixed(2)})`,
+    source: "keyword_crypto",
+    hide: false,
+  };
 }
 
 export function accountVerdict(
@@ -87,5 +110,29 @@ export function accountVerdict(
     };
   }
 
+  return null;
+}
+
+/** Hide when display name / title (or handle) contains a name keyword. */
+export function nameVerdict(
+  displayName: string,
+  handle: string,
+  settings: Settings,
+): Verdict | null {
+  const haystack = `${displayName} ${handle}`.toLowerCase();
+  if (!haystack.trim()) return null;
+
+  for (const kw of settings.nameKeywords) {
+    if (!kw) continue;
+    if (haystack.includes(kw)) {
+      return {
+        label: "slop",
+        confidence: 1,
+        reason: `Name/title contains "${kw}"`,
+        source: "name_slop",
+        hide: true,
+      };
+    }
+  }
   return null;
 }

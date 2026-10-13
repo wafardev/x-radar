@@ -1,4 +1,4 @@
-import { accountVerdict, keywordVerdict } from "./keywords";
+import { accountVerdict, keywordVerdict, nameVerdict } from "./keywords";
 import type { Settings, TweetData, Verdict } from "../shared/types";
 import { sendMessage } from "../shared/messaging";
 import { bumpStat } from "../shared/settings";
@@ -89,9 +89,21 @@ function mediaOnlyVerdict(
   };
 }
 
+function localRules(
+  tweet: TweetData,
+  settings: Settings,
+): Verdict | null {
+  return (
+    accountVerdict(tweet.handle, settings) ||
+    nameVerdict(tweet.displayName, tweet.handle, settings) ||
+    mediaOnlyVerdict(tweet, settings) ||
+    keywordVerdict(tweet.text, settings)
+  );
+}
+
 /**
- * Tiered classification: accounts → media-only hide → keywords → text AI.
- * Vision AI disabled — media without text is always hidden.
+ * Local rules always win over cache (so adding "minecraft" applies immediately).
+ * Cache is only reused for AI / fail-open results after local rules miss.
  */
 export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
   const { tweet, settings } = ctx;
@@ -106,30 +118,16 @@ export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
     };
   }
 
+  const local = localRules(tweet, settings);
+  if (local) {
+    await setCache(tweet.id, local);
+    await recordLocal(local);
+    return local;
+  }
+
   const cached = await getCache(tweet.id);
   if (cached) {
     return { ...cached, source: "cache" };
-  }
-
-  const account = accountVerdict(tweet.handle, settings);
-  if (account) {
-    await setCache(tweet.id, account);
-    await recordLocal(account);
-    return account;
-  }
-
-  const mediaOnly = mediaOnlyVerdict(tweet, settings);
-  if (mediaOnly) {
-    await setCache(tweet.id, mediaOnly);
-    await recordLocal(mediaOnly);
-    return mediaOnly;
-  }
-
-  const keywords = keywordVerdict(tweet.text, settings);
-  if (keywords) {
-    await setCache(tweet.id, keywords);
-    await recordLocal(keywords);
-    return keywords;
   }
 
   const hasApi = Boolean(settings.apiKey);

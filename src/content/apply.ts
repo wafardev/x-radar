@@ -41,6 +41,7 @@ export function applyVerdict(
   article.setAttribute("data-slopradar-id", tweetId);
   article.setAttribute("data-slopradar-source", verdict.source);
   article.setAttribute("data-slopradar-label", verdict.label);
+  article.setAttribute("data-slopradar-reason", verdict.reason);
 
   const shouldHide = verdict.hide && !passthrough;
 

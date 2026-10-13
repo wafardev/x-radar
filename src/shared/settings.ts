@@ -32,6 +32,9 @@ export function normalizeSettings(partial?: Partial<Settings>): Settings {
     slopKeywords: normalizeKeywordList(
       merged.slopKeywords ?? DEFAULT_SETTINGS.slopKeywords,
     ),
+    nameKeywords: normalizeKeywordList(
+      merged.nameKeywords ?? DEFAULT_SETTINGS.nameKeywords,
+    ),
     strictness: Math.min(1, Math.max(0, merged.strictness ?? 0.5)),
     apiBaseUrl: (merged.apiBaseUrl || DEFAULT_SETTINGS.apiBaseUrl).replace(
       /\/$/,

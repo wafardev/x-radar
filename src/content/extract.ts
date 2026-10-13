@@ -36,6 +36,35 @@ function extractHandle(article: HTMLElement): string {
   return "";
 }
 
+function extractDisplayName(article: HTMLElement): string {
+  const userName = article.querySelector('[data-testid="User-Name"]');
+  if (userName) {
+    // First meaningful chunk before @handle
+    const parts = Array.from(userName.querySelectorAll("span"))
+      .map((s) => s.textContent?.trim() ?? "")
+      .filter(Boolean);
+    for (const part of parts) {
+      if (part.startsWith("@")) continue;
+      if (part === "·") continue;
+      if (/^\d+[smhd]$/i.test(part)) continue;
+      // Skip pure timestamp-ish fragments
+      if (part.length >= 1) return part;
+    }
+    const raw = userName.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    return raw.split("@")[0]?.trim() ?? raw;
+  }
+
+  // Fallback: bold-ish name link near the top of the article
+  const link = article.querySelector<HTMLAnchorElement>(
+    'a[role="link"][href^="/"]',
+  );
+  const label = link?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  if (label && !label.startsWith("@")) {
+    return label.split("@")[0]?.trim() ?? label;
+  }
+  return "";
+}
+
 export function normalizeTweetText(raw: string): string {
   const text = raw.replace(/\s+/g, " ").trim();
   if (!text) return "";
@@ -159,6 +188,7 @@ export function extractTweet(article: HTMLElement): TweetData | null {
     id,
     text: extractText(article),
     handle: extractHandle(article),
+    displayName: extractDisplayName(article),
     mediaKind,
     imageUrls,
     hasVideo,

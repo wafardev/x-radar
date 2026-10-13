@@ -90,6 +90,10 @@
         Slop (hide)
         <textarea id="slopKeywords" rows="4"></textarea>
       </label>
+      <label>
+        Name / title (hide if contains)
+        <textarea id="nameKeywords" rows="3" placeholder="memes, videos, …"></textarea>
+      </label>
       <button type="button" id="resetKeywordsBtn" class="ghost">Reset keywords to defaults</button>
     </section>
 
@@ -111,6 +115,7 @@
       <button type="button" id="saveBtn">Save</button>
       <button type="button" id="updateBtn" class="ghost">Update</button>
       <span id="status" role="status"></span>
+      <span id="version" class="version"></span>
     </footer>
 
     <script type="module" src="./popup.ts"></script>

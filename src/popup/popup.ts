@@ -1,5 +1,6 @@
 import {
   DEFAULT_CRYPTO_KEYWORDS,
+  DEFAULT_NAME_KEYWORDS,
   DEFAULT_SLOP_KEYWORDS,
 } from "../shared/defaults";
 import {
@@ -37,6 +38,7 @@ function readForm(): Settings {
       ($("cryptoKeywords") as HTMLTextAreaElement).value,
     ),
     slopKeywords: parseKeywordList(($("slopKeywords") as HTMLTextAreaElement).value),
+    nameKeywords: parseKeywordList(($("nameKeywords") as HTMLTextAreaElement).value),
   };
 }
 
@@ -58,6 +60,7 @@ function fillForm(settings: Settings): void {
     settings.cryptoKeywords,
   );
   ($("slopKeywords") as HTMLTextAreaElement).value = listToText(settings.slopKeywords);
+  ($("nameKeywords") as HTMLTextAreaElement).value = listToText(settings.nameKeywords);
 }
 
 async function persistForm(): Promise<void> {
@@ -98,6 +101,7 @@ async function init(): Promise<void> {
   const settings = await loadSettings();
   fillForm(settings);
   await refreshStats();
+  $("version").textContent = `v${chrome.runtime.getManifest().version}`;
 
   $("strictness").addEventListener("input", () => {
     const v = Number(($("strictness") as HTMLInputElement).value);
@@ -150,6 +154,9 @@ async function init(): Promise<void> {
     ($("slopKeywords") as HTMLTextAreaElement).value = listToText(
       DEFAULT_SLOP_KEYWORDS,
     );
+    ($("nameKeywords") as HTMLTextAreaElement).value = listToText(
+      DEFAULT_NAME_KEYWORDS,
+    );
     setStatus("Keywords reset — click Save", "ok");
   });
 
@@ -160,6 +167,9 @@ async function init(): Promise<void> {
       );
       ($("slopKeywords") as HTMLTextAreaElement).value = listToText(
         DEFAULT_SLOP_KEYWORDS,
+      );
+      ($("nameKeywords") as HTMLTextAreaElement).value = listToText(
+        DEFAULT_NAME_KEYWORDS,
       );
       await persistForm();
       setStatus("Updated defaults", "ok");

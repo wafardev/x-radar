@@ -168,6 +168,13 @@ footer {
   padding-top: 8px;
 }
 
+.version {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 #status {
   color: var(--muted);
   font-size: 12px;
