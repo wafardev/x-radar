@@ -1,50 +1,62 @@
 const OVERLAY_CLASS = "slopradar-stamp-overlay";
 const MARK_CLASS = "slopradar-stamp-mark";
-const STYLE_ID = "slopradar-stamp-anim-style";
+const STYLE_ID = "slopradar-stamp-anim-style-v2";
 
 function ensureStampStyles(): void {
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = STYLE_ID;
+  let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement("style");
+    style.id = STYLE_ID;
+    (document.head || document.documentElement).appendChild(style);
+  }
+  // Always refresh so reloads pick up brighter styles even if an old tag lingered
   style.textContent = `
     .${OVERLAY_CLASS} {
       position: absolute !important;
       inset: 0 !important;
-      z-index: 50 !important;
+      z-index: 2147483000 !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       pointer-events: none !important;
       overflow: hidden !important;
-      background: rgba(0, 0, 0, 0.18) !important;
+      background: rgba(0, 0, 0, 0.45) !important;
       border-radius: 4px !important;
     }
     .${OVERLAY_CLASS}--linger {
-      background: transparent !important;
+      background: rgba(0, 0, 0, 0.22) !important;
     }
     .${MARK_CLASS} {
-      font: 900 42px/1 "Arial Black", Impact, Haettenschweiler, sans-serif !important;
-      letter-spacing: 0.12em !important;
-      color: transparent !important;
-      -webkit-text-stroke: 3px #39ff14 !important;
+      font: 900 56px/1 "Arial Black", Impact, Haettenschweiler, sans-serif !important;
+      letter-spacing: 0.14em !important;
+      color: #39ff14 !important;
+      -webkit-text-stroke: 2px #0a0a0a !important;
       text-transform: uppercase !important;
       transform: rotate(-18deg) scale(2.4);
       opacity: 0;
       filter: blur(1px);
       animation: slopradar-stamp-smash 520ms cubic-bezier(0.15, 1.4, 0.35, 1) forwards;
-      text-shadow: 0 0 18px rgba(57, 255, 20, 0.35);
+      text-shadow:
+        0 0 8px #39ff14,
+        0 0 24px #39ff14,
+        0 0 48px rgba(57, 255, 20, 0.9),
+        0 2px 0 #0a0a0a !important;
       user-select: none !important;
     }
     .${MARK_CLASS} span {
       display: inline-block;
-      border: 4px solid #39ff14;
-      padding: 10px 18px;
-      border-radius: 6px;
-      box-shadow: inset 0 0 0 2px rgba(57, 255, 20, 0.35);
+      border: 5px solid #39ff14;
+      background: rgba(57, 255, 20, 0.2);
+      padding: 12px 22px;
+      border-radius: 8px;
+      box-shadow:
+        0 0 0 3px #0a0a0a,
+        0 0 28px rgba(57, 255, 20, 0.85),
+        inset 0 0 18px rgba(57, 255, 20, 0.35);
     }
     .${MARK_CLASS}--linger {
       animation: none !important;
-      opacity: 0.55 !important;
+      opacity: 1 !important;
       transform: rotate(-18deg) scale(1) !important;
       filter: none !important;
     }
@@ -69,7 +81,6 @@ function ensureStampStyles(): void {
       }
     }
   `;
-  (document.head || document.documentElement).appendChild(style);
 }
 
 function stampHost(article: HTMLElement): HTMLElement {
@@ -80,7 +91,7 @@ function stampHost(article: HTMLElement): HTMLElement {
 }
 
 /**
- * Rubber-stamp smash. If `linger` is true, leave a faint SLOP mark on the post.
+ * Rubber-stamp smash. If `linger` is true, leave a bright SLOP mark on the post.
  */
 export function playSlopStamp(
   article: HTMLElement,
