@@ -1,23 +1,22 @@
 import { classifyTweet } from "../pipeline/classify";
-import { captureMediaFrame } from "../pipeline/vision";
 import type { Settings } from "../shared/types";
 import { loadSettings } from "../shared/settings";
 import {
   applyVerdict,
   markPending,
-  reapplyHides,
   revealAll,
   undoLastHide,
 } from "./apply";
 import { ensureChip, refreshChip, setChipVisible } from "./chip";
 import { extractTweet, getTweetArticles } from "./extract";
 
-const processed = new WeakSet<HTMLElement>();
+const processedGen = new WeakMap<HTMLElement, number>();
 const inFlight = new Set<string>();
 
 let settings: Settings | null = null;
 let queue: HTMLElement[] = [];
 let draining = false;
+let generation = 0;
 
 async function refreshSettings(): Promise<Settings> {
   settings = await loadSettings();
@@ -26,23 +25,21 @@ async function refreshSettings(): Promise<Settings> {
 
 function applySettingsSideEffects(s: Settings): void {
   setChipVisible(s.enabled);
-  if (!s.enabled || s.passthrough) {
-    revealAll();
-  } else {
-    reapplyHides(false);
-  }
+  generation += 1;
+  queue = [];
+  revealAll();
   refreshChip();
   scan(document);
 }
 
 async function processArticle(article: HTMLElement): Promise<void> {
-  if (processed.has(article)) return;
+  if (processedGen.get(article) === generation) return;
   const tweet = extractTweet(article);
   if (!tweet) return;
 
   if (inFlight.has(tweet.id)) return;
   inFlight.add(tweet.id);
-  processed.add(article);
+  processedGen.set(article, generation);
   markPending(article);
 
   try {
@@ -64,10 +61,8 @@ async function processArticle(article: HTMLElement): Promise<void> {
     }
 
     const verdict = await classifyTweet({
-      article,
       tweet,
       settings: s,
-      captureFrame: captureMediaFrame,
     });
 
     const effective = s.passthrough
@@ -108,7 +103,7 @@ async function drainQueue(): Promise<void> {
 }
 
 function enqueue(article: HTMLElement): void {
-  if (processed.has(article)) return;
+  if (processedGen.get(article) === generation) return;
   if (!queue.includes(article)) queue.push(article);
   void drainQueue();
 }

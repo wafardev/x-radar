@@ -21,6 +21,9 @@ export function normalizeSettings(partial?: Partial<Settings>): Settings {
   const merged: Settings = { ...DEFAULT_SETTINGS, ...partial };
   return {
     ...merged,
+    hideNoTextImage: merged.hideNoTextImage ?? true,
+    hideNoTextGif: merged.hideNoTextGif ?? true,
+    hideNoTextVideo: merged.hideNoTextVideo ?? true,
     allowHandles: (merged.allowHandles ?? []).map(normalizeHandle).filter(Boolean),
     blockHandles: (merged.blockHandles ?? []).map(normalizeHandle).filter(Boolean),
     cryptoKeywords: normalizeKeywordList(
@@ -106,6 +109,10 @@ export async function setCachedVerdict(
   }
 
   await chrome.storage.session.set({ [CACHE_KEY]: cache });
+}
+
+export async function clearVerdictCache(): Promise<void> {
+  await chrome.storage.session.remove(CACHE_KEY);
 }
 
 export function parseHandleList(text: string): string[] {

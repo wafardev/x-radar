@@ -8,6 +8,7 @@ export type VerdictSource =
   | "account_block"
   | "keyword_crypto"
   | "keyword_slop"
+  | "media_only"
   | "text_ai"
   | "vision_ai"
   | "fail_open"
@@ -34,6 +35,12 @@ export interface Verdict {
 export interface Settings {
   enabled: boolean;
   passthrough: boolean;
+  /** Hide image posts with no text */
+  hideNoTextImage: boolean;
+  /** Hide GIF posts with no text */
+  hideNoTextGif: boolean;
+  /** Hide video posts with no text */
+  hideNoTextVideo: boolean;
   apiBaseUrl: string;
   apiKey: string;
   textModel: string;

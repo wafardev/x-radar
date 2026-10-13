@@ -3,6 +3,7 @@ import {
   DEFAULT_SLOP_KEYWORDS,
 } from "../shared/defaults";
 import {
+  clearVerdictCache,
   loadSettings,
   loadStats,
   parseHandleList,
@@ -22,6 +23,9 @@ function readForm(): Settings {
   return {
     enabled: ($("enabled") as HTMLInputElement).checked,
     passthrough: ($("passthrough") as HTMLInputElement).checked,
+    hideNoTextImage: ($("hideNoTextImage") as HTMLInputElement).checked,
+    hideNoTextGif: ($("hideNoTextGif") as HTMLInputElement).checked,
+    hideNoTextVideo: ($("hideNoTextVideo") as HTMLInputElement).checked,
     apiBaseUrl: ($("apiBaseUrl") as HTMLInputElement).value.trim(),
     apiKey: ($("apiKey") as HTMLInputElement).value.trim(),
     textModel: ($("textModel") as HTMLInputElement).value.trim(),
@@ -39,6 +43,9 @@ function readForm(): Settings {
 function fillForm(settings: Settings): void {
   ($("enabled") as HTMLInputElement).checked = settings.enabled;
   ($("passthrough") as HTMLInputElement).checked = settings.passthrough;
+  ($("hideNoTextImage") as HTMLInputElement).checked = settings.hideNoTextImage;
+  ($("hideNoTextGif") as HTMLInputElement).checked = settings.hideNoTextGif;
+  ($("hideNoTextVideo") as HTMLInputElement).checked = settings.hideNoTextVideo;
   ($("apiBaseUrl") as HTMLInputElement).value = settings.apiBaseUrl;
   ($("apiKey") as HTMLInputElement).value = settings.apiKey;
   ($("textModel") as HTMLInputElement).value = settings.textModel;
@@ -51,6 +58,13 @@ function fillForm(settings: Settings): void {
     settings.cryptoKeywords,
   );
   ($("slopKeywords") as HTMLTextAreaElement).value = listToText(settings.slopKeywords);
+}
+
+async function persistForm(): Promise<void> {
+  const next = readForm();
+  await saveSettings(next);
+  await clearVerdictCache();
+  await notifyTabs();
 }
 
 async function refreshStats(): Promise<void> {
@@ -92,14 +106,22 @@ async function init(): Promise<void> {
 
   $("saveBtn").addEventListener("click", async () => {
     try {
-      const next = readForm();
-      await saveSettings(next);
-      await notifyTabs();
+      await persistForm();
       setStatus("Saved", "ok");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Save failed", "err");
     }
   });
+
+  for (const id of ["hideNoTextImage", "hideNoTextGif", "hideNoTextVideo"]) {
+    $(id).addEventListener("change", () => {
+      void persistForm()
+        .then(() => setStatus("Saved", "ok"))
+        .catch((err) =>
+          setStatus(err instanceof Error ? err.message : "Save failed", "err"),
+        );
+    });
+  }
 
   $("undoBtn").addEventListener("click", async () => {
     const tabs = await chrome.tabs.query({
@@ -139,9 +161,7 @@ async function init(): Promise<void> {
       ($("slopKeywords") as HTMLTextAreaElement).value = listToText(
         DEFAULT_SLOP_KEYWORDS,
       );
-      const next = readForm();
-      await saveSettings(next);
-      await notifyTabs();
+      await persistForm();
       setStatus("Updated defaults", "ok");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Update failed", "err");

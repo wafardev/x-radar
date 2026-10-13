@@ -259,6 +259,9 @@ export const DEFAULT_SLOP_KEYWORDS = [
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   passthrough: false,
+  hideNoTextImage: true,
+  hideNoTextGif: true,
+  hideNoTextVideo: true,
   apiBaseUrl: "https://api.openai.com/v1",
   apiKey: "",
   textModel: "gpt-4o-mini",

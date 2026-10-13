@@ -1,17 +1,11 @@
 import { accountVerdict, keywordVerdict } from "./keywords";
-import { needsVision } from "./ai";
 import type { Settings, TweetData, Verdict } from "../shared/types";
 import { sendMessage } from "../shared/messaging";
 import { bumpStat } from "../shared/settings";
 
 export interface ClassifyContext {
-  article: HTMLElement;
   tweet: TweetData;
   settings: Settings;
-  captureFrame: (
-    article: HTMLElement,
-    tweet: TweetData,
-  ) => Promise<string | null>;
 }
 
 async function getCache(tweetId: string): Promise<Verdict | null> {
@@ -39,7 +33,7 @@ async function recordLocal(verdict: Verdict): Promise<void> {
     await bumpStat("classified");
     if (verdict.hide) await bumpStat("hidden");
   } catch {
-    // content may lack session storage in some contexts; ignore
+    // ignore
   }
 }
 
@@ -64,33 +58,40 @@ async function classifyTextRemote(tweet: TweetData): Promise<Verdict> {
   return res.verdict;
 }
 
-async function classifyVisionRemote(
+function mediaOnlyVerdict(
   tweet: TweetData,
-  imageDataUrl: string,
-): Promise<Verdict> {
-  const res = await sendMessage<
-    { ok: true; verdict: Verdict } | { ok: false; error: string }
-  >({
-    type: "CLASSIFY_VISION",
-    tweetId: tweet.id,
-    text: tweet.text,
-    handle: tweet.handle,
-    imageDataUrl,
-  });
-  if (!res.ok) {
-    return {
-      label: "unsure",
-      confidence: 0,
-      reason: res.error,
-      source: "fail_open",
-      hide: false,
-    };
-  }
-  return res.verdict;
+  settings: Settings,
+): Verdict | null {
+  const noText = tweet.text.trim().length === 0;
+  if (!noText) return null;
+
+  const kind =
+    tweet.mediaKind !== "none"
+      ? tweet.mediaKind
+      : tweet.hasVideo
+        ? "video"
+        : "none";
+  if (kind === "none") return null;
+
+  const hide =
+    (kind === "image" && settings.hideNoTextImage) ||
+    (kind === "gif" && settings.hideNoTextGif) ||
+    (kind === "video" && settings.hideNoTextVideo);
+
+  if (!hide) return null;
+
+  return {
+    label: "slop",
+    confidence: 1,
+    reason: `No-text ${kind} hidden`,
+    source: "media_only",
+    hide: true,
+  };
 }
 
 /**
- * Full tiered classification. Fail-open on AI errors.
+ * Tiered classification: accounts → media-only hide → keywords → text AI.
+ * Vision AI disabled — media without text is always hidden.
  */
 export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
   const { tweet, settings } = ctx;
@@ -117,6 +118,13 @@ export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
     return account;
   }
 
+  const mediaOnly = mediaOnlyVerdict(tweet, settings);
+  if (mediaOnly) {
+    await setCache(tweet.id, mediaOnly);
+    await recordLocal(mediaOnly);
+    return mediaOnly;
+  }
+
   const keywords = keywordVerdict(tweet.text, settings);
   if (keywords) {
     await setCache(tweet.id, keywords);
@@ -125,29 +133,9 @@ export async function classifyTweet(ctx: ClassifyContext): Promise<Verdict> {
   }
 
   const hasApi = Boolean(settings.apiKey);
-  let textVerdict: Verdict | null = null;
 
   if (hasApi && tweet.text.trim().length > 0) {
-    textVerdict = await classifyTextRemote(tweet);
-  }
-
-  const shouldVision =
-    hasApi &&
-    tweet.mediaKind !== "none" &&
-    (needsVision(tweet.text, tweet.mediaKind, textVerdict) ||
-      tweet.text.trim().length < 40);
-
-  if (shouldVision) {
-    const frame = await ctx.captureFrame(ctx.article, tweet);
-    if (frame) {
-      const visionVerdict = await classifyVisionRemote(tweet, frame);
-      await setCache(tweet.id, visionVerdict);
-      await recordLocal(visionVerdict);
-      return visionVerdict;
-    }
-  }
-
-  if (textVerdict) {
+    const textVerdict = await classifyTextRemote(tweet);
     await setCache(tweet.id, textVerdict);
     await recordLocal(textVerdict);
     return textVerdict;
