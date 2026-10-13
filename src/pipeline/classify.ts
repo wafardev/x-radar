@@ -62,6 +62,7 @@ function mediaOnlyVerdict(
   tweet: TweetData,
   settings: Settings,
 ): Verdict | null {
+  // Primary caption only — quoted text must not block this
   const noText = tweet.text.trim().length === 0;
   if (!noText) return null;
 
@@ -70,7 +71,9 @@ function mediaOnlyVerdict(
       ? tweet.mediaKind
       : tweet.hasVideo
         ? "video"
-        : "none";
+        : tweet.hasQuote
+          ? "video"
+          : "none";
   if (kind === "none") return null;
 
   const hide =
@@ -83,7 +86,9 @@ function mediaOnlyVerdict(
   return {
     label: "slop",
     confidence: 1,
-    reason: `No-text ${kind} hidden`,
+    reason: tweet.hasQuote
+      ? `No-text quote/${kind} hidden`
+      : `No-text ${kind} hidden`,
     source: "media_only",
     hide: true,
   };
@@ -97,7 +102,11 @@ function localRules(
     accountVerdict(tweet.handle, settings) ||
     nameVerdict(tweet.displayName, tweet.handle, settings) ||
     mediaOnlyVerdict(tweet, settings) ||
-    keywordVerdict(tweet.text, settings)
+    // Match slop keywords in primary caption AND quoted text / link signals
+    keywordVerdict(
+      [tweet.text, tweet.quoteText].filter(Boolean).join("\n"),
+      settings,
+    )
   );
 }
 

@@ -216,8 +216,10 @@ export const DEFAULT_SLOP_KEYWORDS = [
   // Social / short-form
   "tiktok",
   "tik tok",
+  "tiktok.com",
   "tiktok trend",
   "instagram",
+  "instagram.com",
   "insta ",
   "reels",
   "reel ",
@@ -228,6 +230,16 @@ export const DEFAULT_SLOP_KEYWORDS = [
   "shorts",
   "snapchat",
   "onlyfans",
+  // FR laugh / reaction fluff (common on reposted TikToks)
+  "morte de rire",
+  "mort de rire",
+  "mdrr",
+  "mdrrr",
+  "ptdr",
+  "plié de rire",
+  "plie de rire",
+  "j'ai trop ri",
+  "jai trop ri",
   // Dating / looks / lifestyle
   "dating",
   "girlfriend",

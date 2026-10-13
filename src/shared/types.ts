@@ -18,13 +18,17 @@ export type VerdictSource =
 
 export interface TweetData {
   id: string;
+  /** Primary caption only (excludes quoted tweet text) */
   text: string;
+  /** Text inside a quoted/embedded tweet, if any */
+  quoteText: string;
   handle: string;
   /** Profile display name / title */
   displayName: string;
   mediaKind: MediaKind;
   imageUrls: string[];
   hasVideo: boolean;
+  hasQuote: boolean;
 }
 
 export interface Verdict {

@@ -39,7 +39,6 @@ function extractHandle(article: HTMLElement): string {
 function extractDisplayName(article: HTMLElement): string {
   const userName = article.querySelector('[data-testid="User-Name"]');
   if (userName) {
-    // First meaningful chunk before @handle
     const parts = Array.from(userName.querySelectorAll("span"))
       .map((s) => s.textContent?.trim() ?? "")
       .filter(Boolean);
@@ -47,14 +46,12 @@ function extractDisplayName(article: HTMLElement): string {
       if (part.startsWith("@")) continue;
       if (part === "·") continue;
       if (/^\d+[smhd]$/i.test(part)) continue;
-      // Skip pure timestamp-ish fragments
       if (part.length >= 1) return part;
     }
     const raw = userName.textContent?.replace(/\s+/g, " ").trim() ?? "";
     return raw.split("@")[0]?.trim() ?? raw;
   }
 
-  // Fallback: bold-ish name link near the top of the article
   const link = article.querySelector<HTMLAnchorElement>(
     'a[role="link"][href^="/"]',
   );
@@ -69,17 +66,75 @@ export function normalizeTweetText(raw: string): string {
   const text = raw.replace(/\s+/g, " ").trim();
   if (!text) return "";
   if (MEDIA_ONLY_TEXT_RE.test(text)) return "";
-  // Strip trailing media shortlinks that X appends to captions
   const stripped = text
     .replace(/\s*(?:https?:\/\/)?(?:t\.co\/\w+|pic\.x\.com\/\w+)\s*$/gi, "")
     .trim();
   return stripped;
 }
 
-function extractText(article: HTMLElement): string {
-  const textEl = article.querySelector('[data-testid="tweetText"]');
-  if (!textEl) return "";
-  return normalizeTweetText(textEl.textContent ?? "");
+function isInsideQuote(el: Element): boolean {
+  if (el.closest('[data-testid="quoteTweet"]')) return true;
+  // Quote cards are often a nested status link block with its own User-Name
+  const quoteLink = el.closest('div[role="link"][href*="/status/"]');
+  if (quoteLink) return true;
+  return false;
+}
+
+function extractPrimaryAndQuoteText(article: HTMLElement): {
+  text: string;
+  quoteText: string;
+  hasQuote: boolean;
+} {
+  const nodes = Array.from(
+    article.querySelectorAll<HTMLElement>('[data-testid="tweetText"]'),
+  );
+  const primary: string[] = [];
+  const quoted: string[] = [];
+
+  for (const node of nodes) {
+    const normalized = normalizeTweetText(node.textContent ?? "");
+    if (!normalized) continue;
+    if (isInsideQuote(node)) quoted.push(normalized);
+    else primary.push(normalized);
+  }
+
+  const hasQuoteUi = Boolean(
+    article.querySelector(
+      '[data-testid="quoteTweet"], div[role="link"][href*="/status/"]',
+    ),
+  );
+
+  return {
+    text: primary.join(" ").trim(),
+    quoteText: quoted.join(" ").trim(),
+    hasQuote: hasQuoteUi || quoted.length > 0,
+  };
+}
+
+/** Extra haystack: links/aria that mention TikTok etc. (watermarks aren't OCR'd). */
+function extractLinkSignals(article: HTMLElement): string {
+  const bits: string[] = [];
+  for (const a of article.querySelectorAll("a[href]")) {
+    const href = (a.getAttribute("href") || "").toLowerCase();
+    if (
+      href.includes("tiktok.com") ||
+      href.includes("instagram.com") ||
+      href.includes("youtube.com/shorts")
+    ) {
+      bits.push(href);
+    }
+  }
+  for (const el of article.querySelectorAll("[aria-label]")) {
+    const label = (el.getAttribute("aria-label") || "").toLowerCase();
+    if (
+      label.includes("tiktok") ||
+      label.includes("instagram") ||
+      label.includes("reels")
+    ) {
+      bits.push(label);
+    }
+  }
+  return bits.join(" ");
 }
 
 function extractMedia(article: HTMLElement): {
@@ -139,7 +194,6 @@ function extractMedia(article: HTMLElement): {
     }
   }
 
-  // CSS background posters on video placeholders
   if (imageUrls.length === 0) {
     for (const el of article.querySelectorAll<HTMLElement>("div, span")) {
       const bg = getComputedStyle(el).backgroundImage;
@@ -184,14 +238,20 @@ export function extractTweet(article: HTMLElement): TweetData | null {
   if (!id) return null;
 
   const { mediaKind, imageUrls, hasVideo } = extractMedia(article);
+  const { text, quoteText, hasQuote } = extractPrimaryAndQuoteText(article);
+  const linkSignals = extractLinkSignals(article);
+
   return {
     id,
-    text: extractText(article),
+    text,
+    // Fold link signals into quoteText haystack for keyword matching
+    quoteText: [quoteText, linkSignals].filter(Boolean).join(" ").trim(),
     handle: extractHandle(article),
     displayName: extractDisplayName(article),
     mediaKind,
     imageUrls,
     hasVideo,
+    hasQuote,
   };
 }
 
